@@ -1,6 +1,10 @@
 # ICC Meta Redirect plugin for YOURLS
 This YOURLS plugin make it possible to change logo, title, page footer, add custom CSS, and customize favicon lines into your YOURLS installation.
 
+<!-- buttons -->
+
+<!-- endbuttons -->
+
 ## Inspiration
 * Project inspired by [YOURLS-GWallChangeLogo](https://github.com/gioxx/YOURLS-GWallChangeLogo), [YOURLS-GWallChangeTitle](https://github.com/gioxx/YOURLS-GWallChangeTitle),.
 
