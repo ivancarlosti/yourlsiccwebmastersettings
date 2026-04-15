@@ -2,8 +2,8 @@
 /*
 Plugin Name: ICC Webmaster Settings
 Plugin URI: https://git.icc.gg/ivancarlos/yourlsiccwebmastersettings
-Description: Customize logo, title, footer, CSS, favicons, add 2FA & reCAPTCHA, HTTP, 301/302 redirects, allow dash/underscore, force lowercase, remove share buttons.
-Version: 3.0
+Description: Customize logo, title, footer, CSS, favicons, add 2FA & reCAPTCHA, HTTP, 301/302 redirects, allow dash/underscore, force lowercase, remove share buttons, accept other protocols.
+Version: 3.1.0
 Author: Ivan Carlos
 Author URI: https://ivancarlos.com.br/
 */
@@ -98,6 +98,10 @@ function icc_config_do_page()
     // Force Lowercase options
     $icc_force_lowercase_enabled = yourls_get_option('icc_force_lowercase_enabled');
     $force_lowercase_checked = $icc_force_lowercase_enabled ? 'checked' : '';
+
+    // Allow Other Protocols options
+    $icc_allow_other_protocols_enabled = yourls_get_option('icc_allow_other_protocols_enabled');
+    $allow_other_protocols_checked = $icc_allow_other_protocols_enabled ? 'checked' : '';
 
     // 2FA options
     $icc_2fa_tokens = json_decode(yourls_get_option('icc_2fa_tokens', '{}'), true);
@@ -237,6 +241,11 @@ function icc_config_do_page()
         <input type="checkbox" id="icc_force_lowercase_enabled" name="icc_force_lowercase_enabled" value="1" {$force_lowercase_checked} />
         <br><span style="padding-left: 205px;"><small>Force uppercase keywords to be converted to lowercase (e.g., ABC -> abc).</small></span>
     </p>
+    <p>
+        <label for="icc_allow_other_protocols_enabled" style="display: inline-block; width: 200px;">Accept Other Protocols</label>
+        <input type="checkbox" id="icc_allow_other_protocols_enabled" name="icc_allow_other_protocols_enabled" value="1" {$allow_other_protocols_checked} />
+        <br><span style="padding-left: 205px;"><small>Allow non-HTTP(S) protocols (e.g., ms-settings:, steam:, mailto:, tel:).</small></span>
+    </p>
 
     <p><input type="submit" name="icc_submit" value="Update values" /></p>
 </form>
@@ -318,6 +327,10 @@ function icc_config_update_option()
     // Force Lowercase update
     $force_lowercase_enabled = isset($_POST['icc_force_lowercase_enabled']);
     yourls_update_option('icc_force_lowercase_enabled', $force_lowercase_enabled);
+
+    // Allow Other Protocols update
+    $allow_other_protocols_enabled = isset($_POST['icc_allow_other_protocols_enabled']);
+    yourls_update_option('icc_allow_other_protocols_enabled', $allow_other_protocols_enabled);
 }
 
 // Show custom logo
@@ -582,6 +595,31 @@ function icc_rmv_row_action_share($links)
 function icc_shunt_share_box($shunt)
 {
     return true;
+}
+
+// Allow Other Protocols Logic
+if (yourls_get_option('icc_allow_other_protocols_enabled')) {
+    yourls_add_filter('is_valid_url', 'icc_validate_other_protocols');
+}
+
+function icc_validate_other_protocols($valid, $url)
+{
+    // If already valid by default validation, return true
+    if ($valid) {
+        return true;
+    }
+    
+    // Check if URL contains a colon (protocol separator)
+    // This accepts any protocol like ms-settings:, steam:, mailto:, tel:, etc.
+    if (strpos($url, ':') !== false) {
+        // Basic validation: URL should have something after the colon
+        $parts = explode(':', $url, 2);
+        if (!empty($parts[0]) && !empty($parts[1])) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 // 2FA Support Logic
