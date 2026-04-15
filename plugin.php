@@ -102,6 +102,13 @@ function icc_config_do_page()
     // Allow Other Protocols options
     $icc_allow_other_protocols_enabled = yourls_get_option('icc_allow_other_protocols_enabled');
     $allow_other_protocols_checked = $icc_allow_other_protocols_enabled ? 'checked' : '';
+    
+    // Custom Protocols list
+    $icc_custom_protocols = yourls_get_option('icc_custom_protocols');
+    if ($icc_custom_protocols === false) {
+        $icc_custom_protocols = "ms-settings:\nsteam:\nmailto:\ntel:";
+    }
+    $custom_protocols_escaped = htmlspecialchars($icc_custom_protocols, ENT_QUOTES);
 
     // 2FA options
     $icc_2fa_tokens = json_decode(yourls_get_option('icc_2fa_tokens', '{}'), true);
@@ -244,7 +251,12 @@ function icc_config_do_page()
     <p>
         <label for="icc_allow_other_protocols_enabled" style="display: inline-block; width: 200px;">Accept Other Protocols</label>
         <input type="checkbox" id="icc_allow_other_protocols_enabled" name="icc_allow_other_protocols_enabled" value="1" {$allow_other_protocols_checked} />
-        <br><span style="padding-left: 205px;"><small>Allow non-HTTP(S) protocols (e.g., ms-settings:, steam:, mailto:, tel:).</small></span>
+        <br><span style="padding-left: 205px;"><small>Allow non-HTTP(S) protocols. Add custom protocols in the textarea below.</small></span>
+    </p>
+    <p>
+        <label for="icc_custom_protocols" style="display: inline-block; width: 200px; vertical-align: top;">Custom Protocols List<br>
+        <span style="color:#666;font-size:90%;">(One protocol per line, e.g., "ms-settings:" or "steam:")</span></label>
+        <textarea id="icc_custom_protocols" name="icc_custom_protocols" rows="5" cols="80" style="vertical-align: top;">{$custom_protocols_escaped}</textarea>
     </p>
 
     <p><input type="submit" name="icc_submit" value="Update values" /></p>
@@ -331,6 +343,12 @@ function icc_config_update_option()
     // Allow Other Protocols update
     $allow_other_protocols_enabled = isset($_POST['icc_allow_other_protocols_enabled']);
     yourls_update_option('icc_allow_other_protocols_enabled', $allow_other_protocols_enabled);
+    
+    // Custom Protocols list update
+    if (isset($_POST['icc_custom_protocols'])) {
+        $custom_protocols = trim($_POST['icc_custom_protocols']);
+        yourls_update_option('icc_custom_protocols', $custom_protocols);
+    }
 }
 
 // Show custom logo
@@ -597,29 +615,35 @@ function icc_shunt_share_box($shunt)
     return true;
 }
 
-// Allow Other Protocols Logic
+// Custom Protocols Logic
 if (yourls_get_option('icc_allow_other_protocols_enabled')) {
-    yourls_add_filter('is_valid_url', 'icc_validate_other_protocols');
+    yourls_add_filter('kses_allowed_protocols', 'icc_custom_protocols_allowed');
 }
 
-function icc_validate_other_protocols($valid, $url)
+function icc_custom_protocols_allowed($protocols)
 {
-    // If already valid by default validation, return true
-    if ($valid) {
-        return true;
+    // Get custom protocols list from option
+    $custom_protocols_text = yourls_get_option('icc_custom_protocols');
+    if ($custom_protocols_text === false) {
+        $custom_protocols_text = "ms-settings:\nsteam:\nmailto:\ntel:";
     }
     
-    // Check if URL contains a colon (protocol separator)
-    // This accepts any protocol like ms-settings:, steam:, mailto:, tel:, etc.
-    if (strpos($url, ':') !== false) {
-        // Basic validation: URL should have something after the colon
-        $parts = explode(':', $url, 2);
-        if (!empty($parts[0]) && !empty($parts[1])) {
-            return true;
+    // Parse protocols (one per line, strip whitespace, keep non-empty)
+    $lines = explode("\n", $custom_protocols_text);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (!empty($line)) {
+            // Ensure protocol ends with : (or ://) as required by kses
+            // kses expects protocols like 'http://' or 'mailto:' (with colon)
+            if (substr($line, -1) !== ':') {
+                $line .= ':';
+            }
+            // Add to allowed protocols
+            $protocols[] = $line;
         }
     }
     
-    return false;
+    return $protocols;
 }
 
 // 2FA Support Logic
