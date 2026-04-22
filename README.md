@@ -30,7 +30,7 @@ This YOURLS plugin make it possible to change logo, title, page footer, add cust
 
 ## Requirements
 * YOURLS 1.10+
-* 
+
 ## Screenshots
 
 <img width="2036" height="1978" alt="1" src="https://github.com/user-attachments/assets/1c7b614a-abdf-4578-9919-2e0c93b4031e" />
