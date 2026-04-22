@@ -2,8 +2,8 @@
 /*
 Plugin Name: ICC Webmaster Settings
 Plugin URI: https://git.icc.gg/ivancarlos/yourlsiccwebmastersettings
-Description: Customize logo, title, footer, CSS, favicons, add 2FA & reCAPTCHA, HTTP, 301/302 redirects, allow dash/underscore, force lowercase, remove share buttons, accept other protocols.
-Version: 3.1.0
+Description: This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA into your YOURLS installation.
+Version: 3.1.1
 Author: Ivan Carlos
 Author URI: https://ivancarlos.com.br/
 */
