@@ -1,5 +1,5 @@
-# ICC Meta Redirect plugin for YOURLS
-This YOURLS plugin make it possible to change logo, title, page footer, add custom CSS, and customize favicon lines into your YOURLS installation.
+# ICC Webmaster Settings plugin for YOURLS
+This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA into your YOURLS installation.
 
 <!-- buttons -->
 [![Stars](https://img.shields.io/github/stars/ivancarlosti/yourlsiccwebmastersettings?label=⭐%20Stars&color=gold&style=flat)](https://github.com/ivancarlosti/yourlsiccwebmastersettings/stargazers)
@@ -26,7 +26,6 @@ This YOURLS plugin make it possible to change logo, title, page footer, add cust
 * Activate plugin in `/admin/plugins.php` page of your YOURLS installation
 * Access `Webmaster Settings` page
 * Manage settings and save
-* Go back to another page to see logo, title, footer, custom css and favicon changes
 
 ## Requirements
 * YOURLS 1.10+
