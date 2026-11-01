@@ -2,7 +2,7 @@
 /*
 Plugin Name: ICC Webmaster Settings
 Plugin URI: https://github.com/ivancarlosti/yourlsiccwebmastersettings
-Description: This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA into your YOURLS installation.
+Description: This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA and per-domain/page redirects into your YOURLS installation.
 Version: 3.1.1
 Author: Ivan Carlos
 Author URI: https://ivancarlos.com.br/
@@ -14,6 +14,9 @@ if (!defined('YOURLS_ABSPATH'))
 
 // Default redirect delay in seconds (used when option unset)
 define('ICC_MRDR_DEFAULT_DELAY', 1);
+
+// Default HTTP code for domain/page redirects (used when option unset)
+define('ICC_DOMAIN_REDIRECT_DEFAULT_CODE', 302);
 
 // Load 2FA library
 require_once 'authenticator.php';
@@ -86,6 +89,22 @@ function icc_config_do_page()
     // 302 Redirect options
     $icc_302_redirect_enabled = yourls_get_option('icc_302_redirect_enabled');
     $redirect_302_checked = $icc_302_redirect_enabled ? 'checked' : '';
+
+    // Domain/Page Redirect options
+    $icc_domain_redirect_enabled = yourls_get_option('icc_domain_redirect_enabled');
+    $domain_redirect_checked = $icc_domain_redirect_enabled ? 'checked' : '';
+
+    $icc_domain_redirect_code = yourls_get_option('icc_domain_redirect_code');
+    if ($icc_domain_redirect_code === false || !in_array((int) $icc_domain_redirect_code, [301, 302], true)) {
+        $icc_domain_redirect_code = ICC_DOMAIN_REDIRECT_DEFAULT_CODE;
+    }
+    $domain_redirect_code_301_selected = ((int) $icc_domain_redirect_code === 301) ? 'selected' : '';
+    $domain_redirect_code_302_selected = ((int) $icc_domain_redirect_code === 302) ? 'selected' : '';
+
+    $icc_domain_redirect_rules = yourls_get_option('icc_domain_redirect_rules');
+    if ($icc_domain_redirect_rules === false)
+        $icc_domain_redirect_rules = '';
+    $domain_redirect_rules_escaped = htmlspecialchars($icc_domain_redirect_rules, ENT_QUOTES);
 
     // Remove Share options
     $icc_remove_share_enabled = yourls_get_option('icc_remove_share_enabled');
@@ -229,7 +248,31 @@ function icc_config_do_page()
     <p>
         <label for="icc_302_redirect_enabled" style="display: inline-block; width: 200px;">Force 302 Redirect</label>
         <input type="checkbox" id="icc_302_redirect_enabled" name="icc_302_redirect_enabled" value="1" {$redirect_302_checked} />
-        <br><span style="padding-left: 205px;"><small>Use 302 (Temporary) instead of 301 (Permanent) for standard redirects.</small></span>
+        <br><span style="padding-left: 205px;"><small>Use 302 (Temporary) instead of 301 (Permanent) for standard short URL redirects. Domain &amp; Page Redirects keep the code configured below.</small></span>
+    </p>
+
+    <h3>Domain &amp; Page Redirect Settings</h3>
+    <p>
+        <label for="icc_domain_redirect_enabled" style="display: inline-block; width: 200px;">Enable Domain Redirects</label>
+        <input type="checkbox" id="icc_domain_redirect_enabled" name="icc_domain_redirect_enabled" value="1" {$domain_redirect_checked} />
+        <br><span style="padding-left: 205px;"><small>Redirect the root page (and unknown paths) of the domains served by this YOURLS installation. Existing short URLs and pages are never affected.</small></span>
+    </p>
+    <p>
+        <label for="icc_domain_redirect_code" style="display: inline-block; width: 200px;">Redirect HTTP Code</label>
+        <select id="icc_domain_redirect_code" name="icc_domain_redirect_code">
+            <option value="301" {$domain_redirect_code_301_selected}>301 (Permanent)</option>
+            <option value="302" {$domain_redirect_code_302_selected}>302 (Temporary)</option>
+        </select>
+        <br><span style="padding-left: 205px;"><small>Default code for every rule. A rule can override it adding 301 or 302 as its third column.</small></span>
+    </p>
+    <p>
+        <label for="icc_domain_redirect_rules" style="display: inline-block; width: 200px; vertical-align: top;">Redirect Rules<br>
+        <span style="color:#666;font-size:90%;">(One per line: domain[/path] target-url [301|302])</span></label>
+        <textarea id="icc_domain_redirect_rules" name="icc_domain_redirect_rules" rows="6" cols="80" style="vertical-align: top;" placeholder="example-a.com https://example-a.com/&#10;example-b.net https://example-b.net/ 301&#10;* https://example.com/">{$domain_redirect_rules_escaped}</textarea>
+        <br><span style="padding-left: 205px;"><small>
+            Use <code>*</code> as the domain to match any domain, a trailing <code>*</code> in the path for a prefix match (e.g. <code>example-b.net/blog/*</code>) and <code>#</code> to comment a line.
+            A domain without a path (or with <code>/</code>) redirects only the domain root. First matching rule wins, so put specific domains before the <code>*</code> catch-all.
+        </small></span>
     </p>
 
     <h3>Interface Settings</h3>
@@ -327,6 +370,28 @@ function icc_config_update_option()
     yourls_update_option('icc_302_redirect_enabled', $redirect_302_enabled);
     $redirect_302_enabled = isset($_POST['icc_302_redirect_enabled']);
     yourls_update_option('icc_302_redirect_enabled', $redirect_302_enabled);
+
+    // Domain/Page Redirect update
+    $domain_redirect_enabled = isset($_POST['icc_domain_redirect_enabled']);
+    yourls_update_option('icc_domain_redirect_enabled', $domain_redirect_enabled);
+
+    if (isset($_POST['icc_domain_redirect_code']) && is_scalar($_POST['icc_domain_redirect_code'])) {
+        $domain_redirect_code = (int) $_POST['icc_domain_redirect_code'];
+        if (!in_array($domain_redirect_code, [301, 302], true)) {
+            $domain_redirect_code = ICC_DOMAIN_REDIRECT_DEFAULT_CODE;
+        }
+        yourls_update_option('icc_domain_redirect_code', $domain_redirect_code);
+    }
+
+    if (isset($_POST['icc_domain_redirect_rules']) && is_string($_POST['icc_domain_redirect_rules'])) {
+        $domain_redirect_rules = trim($_POST['icc_domain_redirect_rules']);
+        $domain_redirect_rules_error = icc_domain_redirect_validate_rules($domain_redirect_rules);
+        if ($domain_redirect_rules_error === true) {
+            yourls_update_option('icc_domain_redirect_rules', $domain_redirect_rules);
+        } else {
+            echo '<div class="error"><p><strong>Error:</strong> ' . htmlspecialchars($domain_redirect_rules_error) . '</p></div>';
+        }
+    }
 
     // Remove Share update
     $remove_share_enabled = isset($_POST['icc_remove_share_enabled']);
@@ -541,6 +606,10 @@ function icc_force_302_redirect($args)
     if (!yourls_get_option('icc_302_redirect_enabled'))
         return;
 
+    // Domain/page redirects keep the HTTP code configured for them
+    if (icc_domain_redirect_in_progress())
+        return;
+
     $url = $args[0];
     $code = $args[1];
     if ($code != 302) {
@@ -548,6 +617,286 @@ function icc_force_302_redirect($args)
         yourls_redirect($url, 302);
         die();
     }
+}
+
+// Domain / Page Redirect Logic
+//
+// Rules are stored one per line as: domain[/path] target-url [301|302]
+// and are evaluated on 'loader_failed', ie only for requests YOURLS could
+// not resolve (the domain root and unknown paths). Existing short URLs and
+// pages are therefore never affected.
+
+yourls_add_action('loader_failed', 'icc_domain_redirect');
+function icc_domain_redirect($args)
+{
+    if (!yourls_get_option('icc_domain_redirect_enabled'))
+        return;
+
+    // Invalid lines are ignored here, they are reported on the settings page
+    $errors = [];
+    $rules = icc_domain_redirect_parse_rules(yourls_get_option('icc_domain_redirect_rules'), $errors);
+    if (empty($rules))
+        return;
+
+    $host = icc_domain_redirect_current_host();
+    if ($host === '')
+        return;
+
+    $request = isset($args[0]) ? $args[0] : '';
+    $path = icc_domain_redirect_request_path($request);
+
+    $default_code = yourls_get_option('icc_domain_redirect_code');
+    if ($default_code === false || !in_array((int) $default_code, [301, 302], true))
+        $default_code = ICC_DOMAIN_REDIRECT_DEFAULT_CODE;
+    $default_code = (int) $default_code;
+
+    foreach ($rules as $rule) {
+        if (!icc_domain_redirect_host_matches($rule['host'], $host))
+            continue;
+        if (!icc_domain_redirect_path_matches($rule['path'], $rule['wildcard'], $path))
+            continue;
+        // Never redirect a page to itself (would loop forever)
+        if (icc_domain_redirect_target_is_self($rule['target'], $host, $path))
+            continue;
+
+        $code = ($rule['code'] !== null) ? $rule['code'] : $default_code;
+
+        // Flag the redirect so the "Force 302 Redirect" option does not
+        // override the HTTP code configured for this rule
+        icc_domain_redirect_in_progress(true);
+        yourls_redirect($rule['target'], $code);
+        die();
+    }
+}
+
+// Track whether the current redirect comes from the Domain / Page Redirect logic
+function icc_domain_redirect_in_progress($set = null)
+{
+    static $in_progress = false;
+
+    if ($set !== null)
+        $in_progress = (bool) $set;
+
+    return $in_progress;
+}
+
+// Parse and validate the rules textarea. Errors are collected in $errors.
+function icc_domain_redirect_parse_rules($raw, &$errors = null)
+{
+    $rules = [];
+    $errors = [];
+
+    if ($raw === false || $raw === null || trim((string) $raw) === '')
+        return $rules;
+
+    $lines = preg_split('/\r\n|\r|\n/', (string) $raw);
+    foreach ($lines as $index => $line) {
+        $line_number = $index + 1;
+        $line = trim($line);
+
+        // Skip empty lines and comments
+        if ($line === '' || substr($line, 0, 1) === '#')
+            continue;
+
+        // Format: domain[/path] target-url [301|302]
+        $parts = preg_split('/\s+/', $line);
+        if (count($parts) < 2 || count($parts) > 3) {
+            $errors[] = 'Line ' . $line_number . ': expected "domain[/path] target-url [301|302]".';
+            continue;
+        }
+
+        // Tolerate a scheme typed by mistake: https://example.com/path
+        $source = preg_replace('!^[a-z0-9+.-]+://!i', '', $parts[0]);
+
+        // Split source into host and path
+        $host = $source;
+        $path = '/';
+        $slash_position = strpos($source, '/');
+        if ($slash_position !== false) {
+            $host = substr($source, 0, $slash_position);
+            $path = substr($source, $slash_position);
+        }
+        $host = strtolower(rtrim($host, '/'));
+
+        if (!icc_domain_redirect_is_valid_host($host)) {
+            $errors[] = 'Line ' . $line_number . ': invalid domain "' . $host . '".';
+            continue;
+        }
+
+        // Normalize path: leading slash, no trailing slash, optional trailing *
+        if ($path === '')
+            $path = '/';
+
+        $wildcard = false;
+        if (substr($path, -1) === '*') {
+            $wildcard = true;
+            $path = substr($path, 0, -1);
+        }
+        if (strpos($path, '*') !== false) {
+            $errors[] = 'Line ' . $line_number . ': "*" is only allowed at the end of the path.';
+            continue;
+        }
+        if (substr($path, 0, 1) !== '/')
+            $path = '/' . $path;
+        if ($path !== '/')
+            $path = rtrim($path, '/');
+        if ($path === '')
+            $path = '/';
+
+        // Target: absolute http(s) URL or site relative path
+        $target = $parts[1];
+        if (!icc_domain_redirect_is_valid_target($target)) {
+            $errors[] = 'Line ' . $line_number . ': invalid target URL "' . $target . '". Use http(s)://... or /path.';
+            continue;
+        }
+
+        // Optional per-rule HTTP code
+        $code = null;
+        if (isset($parts[2])) {
+            $code = (int) $parts[2];
+            if (!in_array($code, [301, 302], true)) {
+                $errors[] = 'Line ' . $line_number . ': invalid HTTP code "' . $parts[2] . '". Use 301 or 302.';
+                continue;
+            }
+        }
+
+        $rules[] = [
+            'host' => $host,
+            'path' => $path,
+            'wildcard' => $wildcard,
+            'target' => $target,
+            'code' => $code,
+            'line' => $line_number,
+        ];
+    }
+
+    return $rules;
+}
+
+// Return true when the rules are valid, or a human readable error message
+function icc_domain_redirect_validate_rules($raw)
+{
+    $errors = [];
+    icc_domain_redirect_parse_rules($raw, $errors);
+
+    if (empty($errors))
+        return true;
+
+    return implode(' ', $errors);
+}
+
+function icc_domain_redirect_is_valid_host($host)
+{
+    if ($host === '*')
+        return true;
+
+    // Letters, digits, dots and hyphens (also covers punycode/IDN domains)
+    return (bool) preg_match('/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i', $host);
+}
+
+function icc_domain_redirect_is_valid_target($target)
+{
+    if ($target === '')
+        return false;
+
+    // Site relative path, but not a protocol relative URL (//host/path)
+    if (substr($target, 0, 1) === '/')
+        return substr($target, 0, 2) !== '//';
+
+    // Absolute URL, http(s) only
+    if (!preg_match('!^https?://!i', $target))
+        return false;
+
+    return filter_var($target, FILTER_VALIDATE_URL) !== false;
+}
+
+function icc_domain_redirect_host_matches($rule_host, $host)
+{
+    if ($rule_host === '*')
+        return true;
+
+    $rule_host = strtolower($rule_host);
+    $host = strtolower($host);
+
+    if ($rule_host === $host)
+        return true;
+
+    // Treat example.com and www.example.com as the same host
+    return preg_replace('/^www\./', '', $rule_host) === preg_replace('/^www\./', '', $host);
+}
+
+function icc_domain_redirect_path_matches($rule_path, $wildcard, $path)
+{
+    $path = icc_domain_redirect_normalize_path($path);
+
+    if ($wildcard) {
+        if ($rule_path === '/')
+            return true;
+
+        return strpos($path . '/', $rule_path . '/') === 0;
+    }
+
+    return $path === $rule_path;
+}
+
+function icc_domain_redirect_normalize_path($path)
+{
+    if ($path === '' || $path === false || $path === null)
+        return '/';
+
+    $path = preg_replace('/[?#].*$/', '', (string) $path);
+    $path = '/' . ltrim($path, '/');
+    if ($path !== '/')
+        $path = rtrim($path, '/');
+
+    return ($path === '') ? '/' : $path;
+}
+
+function icc_domain_redirect_request_path($request)
+{
+    return icc_domain_redirect_normalize_path($request);
+}
+
+function icc_domain_redirect_current_host()
+{
+    if (empty($_SERVER['HTTP_HOST']))
+        return '';
+
+    $host = strtolower(trim($_SERVER['HTTP_HOST']));
+
+    // Strip the port, keeping IPv6 literals untouched
+    if (substr($host, 0, 1) === '[') {
+        $closing = strpos($host, ']');
+        if ($closing !== false)
+            $host = substr($host, 0, $closing + 1);
+    } elseif (strpos($host, ':') !== false) {
+        $host = substr($host, 0, strpos($host, ':'));
+    }
+
+    return $host;
+}
+
+// Tell if a rule would redirect a page to itself
+function icc_domain_redirect_target_is_self($target, $host, $path)
+{
+    $parts = parse_url($target);
+    if ($parts === false)
+        return false;
+
+    $scheme = 'http';
+    if ((!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443)
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https'))
+        $scheme = 'https';
+
+    $target_scheme = isset($parts['scheme']) ? strtolower($parts['scheme']) : $scheme;
+    $target_host = isset($parts['host']) ? strtolower($parts['host']) : strtolower($host);
+    $target_path = isset($parts['path']) ? $parts['path'] : '/';
+
+    if ($target_scheme !== $scheme || strcasecmp($target_host, $host) !== 0)
+        return false;
+
+    return icc_domain_redirect_normalize_path($target_path) === icc_domain_redirect_normalize_path($path);
 }
 
 // Allow dash and underscore in custom short URLs

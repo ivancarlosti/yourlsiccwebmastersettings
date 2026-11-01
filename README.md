@@ -1,5 +1,5 @@
 # ICC Webmaster Settings plugin for YOURLS
-This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA into your YOURLS installation.
+This YOURLS plugin make it possible to change several settings like logo, title, page footer, add custom CSS, customize favicon lines, add reCAPTCHA, 2FA and per-domain/page redirects into your YOURLS installation.
 
 <!-- buttons -->
 [![Stars](https://img.shields.io/github/stars/ivancarlosti/yourlsiccwebmastersettings?label=⭐%20Stars&color=gold&style=flat)](https://github.com/ivancarlosti/yourlsiccwebmastersettings/stargazers)
@@ -23,6 +23,31 @@ This YOURLS plugin make it possible to change several settings like logo, title,
 * Activate plugin in `/admin/plugins.php` page of your YOURLS installation
 * Access `Webmaster Settings` page
 * Manage settings and save
+
+## Domain & Page Redirects
+
+A single YOURLS installation can serve several domains. This feature redirects the root page of each domain (and any page YOURLS cannot resolve as a short URL) to a URL of your choice, with a selectable HTTP code.
+
+Enable it in **Webmaster Settings → Domain & Page Redirect Settings**, choose the default HTTP code (301 or 302) and add one rule per line:
+
+```text
+# domain[/path]        target-url                    [301|302]
+example-a.com           https://example-a.com/
+example-b.net           https://example-b.com/        301
+example-a.com/promo     https://example-a.com/promo
+example-b.net/blog/*    https://blog.example.com/
+*                       https://main.example.com/
+```
+
+* `example-a.com` (no path, or `/`) redirects only the domain root.
+* `example-a.com/promo` redirects that exact path; a trailing `*` turns it into a prefix match, so `example-b.net/blog/*` also matches `/blog/` and `/blog/post-1`.
+* `*` as the domain matches every domain, so `* https://main.example.com/` redirects the root of all domains that have no more specific rule above it.
+* The optional third column (`301` or `302`) overrides the default HTTP code for that rule.
+* Lines starting with `#` are comments and blank lines are ignored. Rules are evaluated top to bottom and the first match wins: put specific domains before the `*` catch-all.
+* `example.com` and `www.example.com` are treated as the same host.
+* Redirects are only evaluated for requests YOURLS cannot resolve, so existing short URLs, admin pages and other YOURLS pages are never affected.
+* A rule pointing to the same scheme, host and path it was requested from is skipped to prevent redirect loops (HTTP to HTTPS upgrades of the same page still work).
+* Redirects issued here keep their configured HTTP code even when **Force 302 Redirect** is enabled.
 
 ## Requirements
 * YOURLS 1.10+
