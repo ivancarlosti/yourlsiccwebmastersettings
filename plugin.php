@@ -34,8 +34,10 @@ function icc_config_add_page()
 // Handle and display unified config page
 function icc_config_do_page()
 {
+    // Save the settings and keep the feedback messages for display
+    $save_notices_html = '';
     if (isset($_POST['icc_submit']))
-        icc_config_update_option();
+        $save_notices_html = icc_config_notices_html(icc_config_update_option());
 
     // Options
     $icc_logo_imageurl = yourls_get_option('icc_logo_imageurl');
@@ -208,6 +210,7 @@ function icc_config_do_page()
 
     echo <<<HTML
 <h2>Webmaster Settings</h2>
+{$save_notices_html}
 <form method="post">
     <h3>Logo Settings</h3>
     <p><label for="icc_logo_imageurl" style="display: inline-block; width: 200px;">Image URL</label>
@@ -332,24 +335,34 @@ function icc_config_do_page()
 HTML;
 }
 
-// Update options
+// Update options and return the feedback messages to display
 function icc_config_update_option()
 {
+    // Options written during this request (unique names) and messages to show
+    $saved = [];
+    $notices = [];
+
+    // Store an option and remember that it was saved
+    $save = function ($key, $value) use (&$saved) {
+        yourls_update_option($key, $value);
+        $saved[$key] = true;
+    };
+
     $fields_logo = ['icc_logo_imageurl', 'icc_logo_imageurl_tag', 'icc_logo_imageurl_title'];
     foreach ($fields_logo as $key) {
         if (isset($_POST[$key]))
-            yourls_update_option($key, strval($_POST[$key]));
+            $save($key, strval($_POST[$key]));
     }
     if (isset($_POST['icc_title_custom']))
-        yourls_update_option('icc_title_custom', strval($_POST['icc_title_custom']));
+        $save('icc_title_custom', strval($_POST['icc_title_custom']));
     if (isset($_POST['icc_footer_text']))
-        yourls_update_option('icc_footer_text', $_POST['icc_footer_text']);
+        $save('icc_footer_text', $_POST['icc_footer_text']);
     if (isset($_POST['icc_custom_css']))
-        yourls_update_option('icc_custom_css', $_POST['icc_custom_css']);
+        $save('icc_custom_css', $_POST['icc_custom_css']);
     $fields_favicon = ['favicon_icon32', 'favicon_icon16', 'favicon_shortcut_icon'];
     foreach ($fields_favicon as $key) {
         if (isset($_POST[$key]))
-            yourls_update_option($key, strval($_POST[$key]));
+            $save($key, strval($_POST[$key]));
     }
 
     // reCAPTCHA update
@@ -358,12 +371,12 @@ function icc_config_update_option()
     $secret_key = isset($_POST['icc_recaptcha_secret_key']) ? trim($_POST['icc_recaptcha_secret_key']) : '';
 
     if ($recaptcha_enabled && (empty($site_key) || empty($secret_key))) {
-        echo '<div class="error"><p><strong>Error:</strong> both Site Key and Secret Key are required to enable reCAPTCHA.</p></div>';
+        $notices[] = ['error', 'Error: both Site Key and Secret Key are required to enable reCAPTCHA.'];
         // Do not update enabled status if validation fails
     } else {
-        yourls_update_option('icc_recaptcha_enabled', $recaptcha_enabled);
-        yourls_update_option('icc_recaptcha_site_key', $site_key);
-        yourls_update_option('icc_recaptcha_secret_key', $secret_key);
+        $save('icc_recaptcha_enabled', $recaptcha_enabled);
+        $save('icc_recaptcha_site_key', $site_key);
+        $save('icc_recaptcha_secret_key', $secret_key);
     }
 
     // Meta Redirect update
@@ -371,42 +384,41 @@ function icc_config_update_option()
         $prefix = substr(trim($_POST['icc_mrdr_url_prefix']), 0, 1);
         if ($prefix === '') {
             yourls_delete_option('icc_mrdr_url_prefix');
+            $saved['icc_mrdr_url_prefix'] = true;
         } else {
-            yourls_update_option('icc_mrdr_url_prefix', $prefix);
+            $save('icc_mrdr_url_prefix', $prefix);
         }
     }
     if (isset($_POST['icc_mrdr_delay'])) {
         $delay = intval($_POST['icc_mrdr_delay']);
         if ($delay < 0)
             $delay = ICC_MRDR_DEFAULT_DELAY;
-        yourls_update_option('icc_mrdr_delay', $delay);
+        $save('icc_mrdr_delay', $delay);
     }
 
     // 302 Redirect update
     $redirect_302_enabled = isset($_POST['icc_302_redirect_enabled']);
-    yourls_update_option('icc_302_redirect_enabled', $redirect_302_enabled);
-    $redirect_302_enabled = isset($_POST['icc_302_redirect_enabled']);
-    yourls_update_option('icc_302_redirect_enabled', $redirect_302_enabled);
+    $save('icc_302_redirect_enabled', $redirect_302_enabled);
 
     // Domain/Page Redirect update
     $domain_redirect_enabled = isset($_POST['icc_domain_redirect_enabled']);
-    yourls_update_option('icc_domain_redirect_enabled', $domain_redirect_enabled);
+    $save('icc_domain_redirect_enabled', $domain_redirect_enabled);
 
     if (isset($_POST['icc_domain_redirect_code']) && is_scalar($_POST['icc_domain_redirect_code'])) {
         $domain_redirect_code = (int) $_POST['icc_domain_redirect_code'];
         if (!in_array($domain_redirect_code, [301, 302], true)) {
             $domain_redirect_code = ICC_DOMAIN_REDIRECT_DEFAULT_CODE;
         }
-        yourls_update_option('icc_domain_redirect_code', $domain_redirect_code);
+        $save('icc_domain_redirect_code', $domain_redirect_code);
     }
 
     if (isset($_POST['icc_domain_redirect_rules']) && is_string($_POST['icc_domain_redirect_rules'])) {
         $domain_redirect_rules = trim($_POST['icc_domain_redirect_rules']);
         $domain_redirect_rules_error = icc_domain_redirect_validate_rules($domain_redirect_rules);
         if ($domain_redirect_rules_error === true) {
-            yourls_update_option('icc_domain_redirect_rules', $domain_redirect_rules);
+            $save('icc_domain_redirect_rules', $domain_redirect_rules);
         } else {
-            echo '<div class="error"><p><strong>Error:</strong> ' . htmlspecialchars($domain_redirect_rules_error) . '</p></div>';
+            $notices[] = ['error', 'Error: ' . $domain_redirect_rules_error];
         }
     }
 
@@ -419,25 +431,46 @@ function icc_config_update_option()
 
     // Remove Share update
     $remove_share_enabled = isset($_POST['icc_remove_share_enabled']);
-    yourls_update_option('icc_remove_share_enabled', $remove_share_enabled);
+    $save('icc_remove_share_enabled', $remove_share_enabled);
 
     // Allow Dash/Underscore update
     $allow_dash_underscore_enabled = isset($_POST['icc_allow_dash_underscore_enabled']);
-    yourls_update_option('icc_allow_dash_underscore_enabled', $allow_dash_underscore_enabled);
+    $save('icc_allow_dash_underscore_enabled', $allow_dash_underscore_enabled);
 
     // Force Lowercase update
     $force_lowercase_enabled = isset($_POST['icc_force_lowercase_enabled']);
-    yourls_update_option('icc_force_lowercase_enabled', $force_lowercase_enabled);
+    $save('icc_force_lowercase_enabled', $force_lowercase_enabled);
 
     // Allow Other Protocols update
     $allow_other_protocols_enabled = isset($_POST['icc_allow_other_protocols_enabled']);
-    yourls_update_option('icc_allow_other_protocols_enabled', $allow_other_protocols_enabled);
-    
+    $save('icc_allow_other_protocols_enabled', $allow_other_protocols_enabled);
+
     // Custom Protocols list update
     if (isset($_POST['icc_custom_protocols'])) {
         $custom_protocols = trim($_POST['icc_custom_protocols']);
-        yourls_update_option('icc_custom_protocols', $custom_protocols);
+        $save('icc_custom_protocols', $custom_protocols);
     }
+
+    $notices[] = ['success', sprintf('Settings saved (%d values).', count($saved))];
+
+    return $notices;
+}
+
+// Build the HTML of the feedback messages produced when the settings are saved
+function icc_config_notices_html($notices)
+{
+    $html = '';
+
+    foreach ($notices as $notice) {
+        $type = $notice[0] === 'error' ? 'error' : ($notice[0] === 'info' ? 'message' : 'success');
+        $color = $notice[0] === 'error' ? '#a33' : ($notice[0] === 'info' ? '#666' : '#2a7a2a');
+
+        $html .= '<div class="' . $type . '" style="border-left:4px solid ' . $color
+            . ';padding:8px;margin:10px 0;background:#f8f8f8;">'
+            . htmlspecialchars($notice[1]) . '</div>' . "\n";
+    }
+
+    return $html;
 }
 
 // Show custom logo
